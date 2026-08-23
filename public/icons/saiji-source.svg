@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="#07110F"/>
+  <path d="M66 146H446M66 256H446M66 366H446M146 66V446M256 66V446M366 66V446" stroke="#18352E" stroke-width="4"/>
+  <circle cx="256" cy="256" r="153" stroke="#46E6BC" stroke-opacity="0.35" stroke-width="5"/>
+  <circle cx="256" cy="256" r="105" stroke="#BCF451" stroke-opacity="0.45" stroke-width="5"/>
+  <path d="M256 103A153 153 0 0 1 403 215L256 256V103Z" fill="url(#sweep)"/>
+  <circle cx="256" cy="256" r="65" fill="#BCF451"/>
+  <path d="M218 285V259H238V285H218ZM246 285V222H266V285H246ZM274 285V190H294V285H274Z" fill="#07110F"/>
+  <circle cx="154" cy="182" r="10" fill="#BCF451"/>
+  <circle cx="383" cy="292" r="8" fill="#46E6BC"/>
+  <circle cx="203" cy="393" r="7" fill="#BCF451"/>
+  <defs><linearGradient id="sweep" x1="256" y1="103" x2="385" y2="235" gradientUnits="userSpaceOnUse"><stop stop-color="#46E6BC" stop-opacity="0.48"/><stop offset="1" stop-color="#46E6BC" stop-opacity="0"/></linearGradient></defs>
+</svg>
