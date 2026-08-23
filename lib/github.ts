@@ -88,6 +88,7 @@ const DIRECT_PARTICIPATION_MARKERS = [
 ];
 
 const REFERENCE_REPOSITORY_MARKERS = ["awesome", "resources", "resource", "list", "links", "portfolio", "profile"];
+const SELF_REPOSITORIES = new Set(["lxuaneneliko/saiji-competition-search"]);
 
 const KNOWN_COMPETITION_ALIASES: Record<string, string[]> = {
   "新竹青春點子": ["新竹縣青春靚點子全國學生創業挑戰賽", "青春靚點子"],
@@ -142,6 +143,10 @@ function competitionNames(input: SearchInput) {
   return [input.competition, ...(input.aliases ?? []), ...knownAliases]
     .filter(Boolean)
     .filter((item, index, array) => array.findIndex((candidate) => normalize(candidate) === normalize(item)) === index);
+}
+
+export function isExcludedRepositoryName(fullName: string) {
+  return SELF_REPOSITORIES.has(fullName.trim().toLocaleLowerCase());
 }
 
 export function sanitizeInput(raw: SearchInput): SearchInput {
@@ -469,7 +474,9 @@ export async function searchCompetitions(rawInput: SearchInput): Promise<SearchR
     throw new Error(warnings[0] || "目前無法連線至 GitHub 搜尋服務。");
   }
 
-  const candidates = [...deduped.values()].slice(0, MAX_CANDIDATES);
+  const candidates = [...deduped.values()]
+    .filter(({ repo }) => !isExcludedRepositoryName(repo.full_name))
+    .slice(0, MAX_CANDIDATES);
   const readmes = await Promise.all(candidates.map(({ repo }) => fetchReadme(repo)));
   const assessedResults = candidates
     .map(({ repo, matchedQuery }, index) => {

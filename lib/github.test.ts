@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSearchQueries, sanitizeInput } from "./github";
+import { buildSearchQueries, isExcludedRepositoryName, sanitizeInput } from "./github";
 
 describe("competition query expansion", () => {
   it("creates a Chinese near-name query when one official-name word may be missing", () => {
@@ -36,5 +36,12 @@ describe("search input validation", () => {
 
     expect(input.competition).toBe("問題解決能力競賽");
     expect(input.aliases).toEqual(["A", "B", "C", "D", "E"]);
+  });
+});
+
+describe("repository exclusions", () => {
+  it("never returns the SAIJI search index as a competition entry", () => {
+    expect(isExcludedRepositoryName("lxuaneneliko/saiji-competition-search")).toBe(true);
+    expect(isExcludedRepositoryName("CJ10110425/Facebook-LINE-Bot")).toBe(false);
   });
 });
