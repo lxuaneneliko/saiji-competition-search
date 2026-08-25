@@ -25,6 +25,16 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "搜尋時發生未預期錯誤。";
-    return NextResponse.json({ error: message }, { status: message.includes("至少") ? 400 : 502 });
+    const rateLimited = message.includes("使用上限");
+    return NextResponse.json(
+      { error: message },
+      {
+        status: message.includes("至少") ? 400 : rateLimited ? 429 : 502,
+        headers: {
+          "Cache-Control": "private, no-store",
+          ...(rateLimited ? { "Retry-After": "60" } : {}),
+        },
+      },
+    );
   }
 }

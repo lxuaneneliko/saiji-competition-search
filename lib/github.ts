@@ -89,6 +89,8 @@ const DIRECT_PARTICIPATION_MARKERS = [
 
 const REFERENCE_REPOSITORY_MARKERS = ["awesome", "resources", "resource", "list", "links", "portfolio", "profile"];
 const SELF_REPOSITORIES = new Set(["lxuaneneliko/saiji-competition-search"]);
+const UNAUTHENTICATED_QUERY_BUDGET = 2;
+const AUTHENTICATED_QUERY_BUDGET = 4;
 
 const KNOWN_COMPETITION_ALIASES: Record<string, string[]> = {
   "新竹青春點子": ["新竹縣青春靚點子全國學生創業挑戰賽", "青春靚點子"],
@@ -138,10 +140,25 @@ function buildNearNameVariants(value: string) {
     .slice(0, 3);
 }
 
+function buildOrganizerlessVariants(value: string) {
+  const withoutPrefix = value.replace(
+    /^.{2,16}?(?:科技大學|技術學院|專科學校|大學|學院|高中|高職|國中|縣政府|市政府|教育局)(?=.{4,})/u,
+    "",
+  ).trim();
+
+  return withoutPrefix && normalize(withoutPrefix) !== normalize(value) ? [withoutPrefix] : [];
+}
+
 function competitionNames(input: SearchInput) {
   const knownAliases = KNOWN_COMPETITION_ALIASES[normalize(input.competition)] ?? [];
   return [input.competition, ...(input.aliases ?? []), ...knownAliases]
     .filter(Boolean)
+    .filter((item, index, array) => array.findIndex((candidate) => normalize(candidate) === normalize(item)) === index);
+}
+
+function competitionPhrases(input: SearchInput) {
+  const names = competitionNames(input);
+  return [...names, ...names.flatMap(buildOrganizerlessVariants)]
     .filter((item, index, array) => array.findIndex((candidate) => normalize(candidate) === normalize(item)) === index);
 }
 
@@ -182,6 +199,10 @@ export function buildSearchQueries(input: SearchInput) {
     queries.push(`${quote(alias)} ${contextual} ${suffix}`);
   }
 
+  for (const organizerless of buildOrganizerlessVariants(input.competition)) {
+    queries.push(`${quote(organizerless)} ${input.year ?? ""} ${suffix}`);
+  }
+
   for (const nearName of buildNearNameVariants(input.competition)) {
     queries.push(`${quote(nearName)} ${contextual} ${suffix}`);
   }
@@ -204,6 +225,10 @@ export function buildSearchQueries(input: SearchInput) {
     .map((item) => item.replace(/\s+/g, " ").trim())
     .filter((item, index, array) => array.indexOf(item) === index)
     .slice(0, 6);
+}
+
+export function selectSearchQueries(queries: string[], authenticated: boolean) {
+  return queries.slice(0, authenticated ? AUTHENTICATED_QUERY_BUDGET : UNAUTHENTICATED_QUERY_BUDGET);
 }
 
 function getHeaders() {
@@ -256,8 +281,9 @@ function rawReadmeUrl(repo: GithubRepository, filename = "README.md") {
 async function fetchReadme(repo: GithubRepository) {
   for (const filename of ["README.md", "readme.md", "README.MD"]) {
     const response = await fetch(rawReadmeUrl(repo, filename), {
+      cache: "no-store",
+      headers: { Range: "bytes=0-219999" },
       signal: AbortSignal.timeout(5000),
-      next: { revalidate: 3600 },
     }).catch(() => null);
     if (response?.ok) {
       const text = await response.text();
@@ -312,7 +338,7 @@ function detectContentLocale(repo: GithubRepository, readme: string): ContentLoc
 }
 
 function distinctiveTokens(input: SearchInput) {
-  const source = [...competitionNames(input), input.organizer ?? ""];
+  const source = [...competitionPhrases(input), input.organizer ?? ""];
   const tokens = source.flatMap((value) => {
     const spaced = value.normalize("NFKC").split(/[\s/|、,，:：()（）\-_]+/u);
     const segmented = segmentWords(value);
@@ -328,7 +354,7 @@ function distinctiveTokens(input: SearchInput) {
 }
 
 function scoreRepository(repo: GithubRepository, readme: string, input: SearchInput, matchedQuery: string) {
-  const names = competitionNames(input);
+  const names = competitionPhrases(input);
   const nearNames = names.flatMap(buildNearNameVariants);
   const normalizedNames = names.map(normalize);
   const nameText = repo.name;
@@ -437,7 +463,8 @@ export async function searchCompetitions(rawInput: SearchInput): Promise<SearchR
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
   const startedAt = Date.now();
-  const queries = buildSearchQueries(input);
+  const authenticated = Boolean(process.env.GITHUB_TOKEN?.trim());
+  const queries = selectSearchQueries(buildSearchQueries(input), authenticated);
   const settled = await Promise.allSettled(queries.map(searchRepositories));
   const warnings: string[] = [];
   const deduped = new Map<number, { repo: GithubRepository; matchedQuery: string }>();
@@ -470,7 +497,8 @@ export async function searchCompetitions(rawInput: SearchInput): Promise<SearchR
     }
   }
 
-  if (!deduped.size && warnings.length === settled.length) {
+  const rateLimited = warnings.some((warning) => warning.includes("使用上限"));
+  if (!deduped.size && (warnings.length === settled.length || rateLimited)) {
     throw new Error(warnings[0] || "目前無法連線至 GitHub 搜尋服務。");
   }
 
@@ -526,7 +554,7 @@ export async function searchCompetitions(rawInput: SearchInput): Promise<SearchR
       remaining,
       limit,
       resetAt,
-      authenticated: Boolean(process.env.GITHUB_TOKEN?.trim()),
+      authenticated,
     },
     warnings: [...new Set(warnings)],
   };

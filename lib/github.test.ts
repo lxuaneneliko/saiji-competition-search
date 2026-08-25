@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSearchQueries, isExcludedRepositoryName, sanitizeInput } from "./github";
+import { buildSearchQueries, isExcludedRepositoryName, sanitizeInput, selectSearchQueries } from "./github";
 
 describe("competition query expansion", () => {
   it("creates a Chinese near-name query when one official-name word may be missing", () => {
@@ -24,6 +24,20 @@ describe("competition query expansion", () => {
 
     expect(queries).toContain('"新竹縣青春靚點子全國學生創業挑戰賽" in:name,description,readme');
     expect(queries).toContain('"青春靚點子" in:name,description,readme');
+  });
+
+  it("removes an organizer prefix before spending the unauthenticated query budget", () => {
+    const queries = buildSearchQueries({ competition: "中原大學解決未來問題能力競賽" });
+
+    expect(queries[1]).toBe('"解決未來問題能力競賽" in:name,description,readme');
+    expect(selectSearchQueries(queries, false)).toEqual(queries.slice(0, 2));
+  });
+
+  it("limits GitHub searches according to authentication capacity", () => {
+    const queries = Array.from({ length: 6 }, (_, index) => `query-${index}`);
+
+    expect(selectSearchQueries(queries, false)).toHaveLength(2);
+    expect(selectSearchQueries(queries, true)).toHaveLength(4);
   });
 });
 
